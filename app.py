@@ -6,11 +6,11 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from collections import Counter
 import skimage.morphology
-import uuid  # For generating unique filenames
-import time  # Import the time module
+import uuid  
+import time 
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Replace with a real secret key
+app.secret_key = 'your_secret_key_here' 
 
 UPLOAD_FOLDER = './static/output'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
