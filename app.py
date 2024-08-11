@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, url_for, session
+from flask import Flask, request, jsonify
 import os
 import cv2
 import numpy as np
@@ -6,14 +6,31 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from collections import Counter
 import skimage.morphology
-import uuid  
-import time 
+import uuid
+import cloudinary
+import cloudinary.uploader
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here' 
+app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
-UPLOAD_FOLDER = './static/output'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Set the UPLOAD_FOLDER configuration
+app.config['UPLOAD_FOLDER'] = './static/output'
+
+# Enable CORS for all routes
+CORS(app)
+
+# Cloudinary configuration using environment variables
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+    secure=True
+)
 
 def process_images(image1_path, image2_path, output_dir):
     print('[INFO] Reading Images ...')
@@ -100,55 +117,47 @@ def clustering(FVS, components, new_size):
     change_map = np.reshape(output, (new_size[0] - 4, new_size[1] - 4))
     return least_index, change_map
 
-def cleanup_images():
-    """Delete old images from the upload folder."""
-    now = time.time()
-    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if os.path.isfile(file_path):
-            file_age = now - os.path.getmtime(file_path)
-            if file_age > 3600:  # Keep files for 1 hour
-                os.remove(file_path)
+@app.route('/process', methods=['POST'])
+def process():
+    if 'image1' not in request.files or 'image2' not in request.files:
+        return jsonify({"error": "No file part"}), 400
 
-@app.before_request
-def before_request():
-    """Run cleanup before handling each request."""
-    cleanup_images()
+    image1_file = request.files['image1']
+    image2_file = request.files['image2']
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    image1 = None
-    image2 = None
-    filename = None
-    
-    if request.method == 'POST':
-        if 'image1' not in request.files or 'image2' not in request.files:
-            return 'No file part'
-        
-        image1_file = request.files['image1']
-        image2_file = request.files['image2']
+    if image1_file.filename == '' or image2_file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
 
-        if image1_file.filename == '' or image2_file.filename == '':
-            return 'No selected file'
-        
-        if image1_file and image2_file:
-            # Generate unique filenames
-            image1_filename = str(uuid.uuid4()) + "_" + image1_file.filename
-            image2_filename = str(uuid.uuid4()) + "_" + image2_file.filename
-            image1_path = os.path.join(app.config['UPLOAD_FOLDER'], image1_filename)
-            image2_path = os.path.join(app.config['UPLOAD_FOLDER'], image2_filename)
-            image1_file.save(image1_path)
-            image2_file.save(image2_path)
+    if image1_file and image2_file:
+        # Save files locally temporarily
+        image1_filename = str(uuid.uuid4()) + "_" + image1_file.filename
+        image2_filename = str(uuid.uuid4()) + "_" + image2_file.filename
+        image1_path = os.path.join(app.config['UPLOAD_FOLDER'], image1_filename)
+        image2_path = os.path.join(app.config['UPLOAD_FOLDER'], image2_filename)
+        image1_file.save(image1_path)
+        image2_file.save(image2_path)
 
-            # Process images and get output image path
-            change_map_path = process_images(image1_path, image2_path, app.config['UPLOAD_FOLDER'])
+        # Process images
+        change_map_path = process_images(image1_path, image2_path, app.config['UPLOAD_FOLDER'])
 
-            # Extract only the filename from the path
-            filename = os.path.basename(change_map_path)
-            image1 = image1_filename
-            image2 = image2_filename
+        # Upload images to Cloudinary
+        image1_upload = cloudinary.uploader.upload(image1_path)
+        image2_upload = cloudinary.uploader.upload(image2_path)
+        change_map_upload = cloudinary.uploader.upload(change_map_path)
 
-    return render_template('index.html', image1=image1, image2=image2, filename=filename)
+        # Remove local files after upload
+        os.remove(image1_path)
+        os.remove(image2_path)
+        os.remove(change_map_path)
+
+        # Return JSON response with Cloudinary URLs
+        return jsonify({
+            "image1_url": image1_upload['secure_url'],
+            "image2_url": image2_upload['secure_url'],
+            "change_map_url": change_map_upload['secure_url']
+        })
+
+    return jsonify({"error": "Something went wrong"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
