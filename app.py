@@ -12,19 +12,16 @@ import cloudinary.uploader
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
-# Set the UPLOAD_FOLDER configuration
+
 app.config['UPLOAD_FOLDER'] = './static/output'
 
-# Enable CORS for all routes
 CORS(app)
 
-# Cloudinary configuration using environment variables
 cloudinary.config(
     cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
     api_key=os.getenv('CLOUDINARY_API_KEY'),
@@ -137,20 +134,19 @@ def process():
         image1_file.save(image1_path)
         image2_file.save(image2_path)
 
-        # Process images
+    
         change_map_path = process_images(image1_path, image2_path, app.config['UPLOAD_FOLDER'])
 
-        # Upload images to Cloudinary
+  
         image1_upload = cloudinary.uploader.upload(image1_path)
         image2_upload = cloudinary.uploader.upload(image2_path)
         change_map_upload = cloudinary.uploader.upload(change_map_path)
 
-        # Remove local files after upload
+ 
         os.remove(image1_path)
         os.remove(image2_path)
         os.remove(change_map_path)
 
-        # Return JSON response with Cloudinary URLs
         return jsonify({
             "image1_url": image1_upload['secure_url'],
             "image2_url": image2_upload['secure_url'],
