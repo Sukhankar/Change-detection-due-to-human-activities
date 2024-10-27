@@ -85,10 +85,4 @@ Contributions are welcome! Please follow these steps:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contact
-
-- **Name:** Harsh Ramesh Bailurkar
-- **Email:** harshbailurkar@gmail.com
-- **LinkedIn:** [Harsh Bailurkar](https://www.linkedin.com/in/harsh-bailurkar)
-- **GitHub:** [Harsh Bailurkar](https://github.com/Harshbailurkar)
 
